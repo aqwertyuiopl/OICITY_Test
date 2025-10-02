@@ -1,31 +1,34 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Firebase × GitHub Pages</title>
   <script type="module">
-    // Firebase SDK を読み込む
+    // Firebase SDK の読み込み（CDN版を使う）
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
 
-    // Firebase 設定（Firebase Console からコピー）
+    // あなたの firebaseConfig を貼る
     const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT.firebaseapp.com",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_PROJECT.appspot.com",
-      messagingSenderId: "SENDER_ID",
-      appId: "APP_ID"
+    apiKey: "AIzaSyAC7KYkyQQ2htMVRuy0WecceSkkM6jEbEo",
+  authDomain: "oicity-7bdfa.firebaseapp.com",
+  projectId: "oicity-7bdfa",
+  storageBucket: "oicity-7bdfa.firebasestorage.app",
+  messagingSenderId: "821086631511",
+  appId: "1:821086631511:web:0663e7e7865ded71ee5512",
+  measurementId: "G-XEWF7TP8R3"
     };
 
     // Firebase 初期化
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    console.log("Firebase Connected:", app);
+    const analytics = getAnalytics(app);
+
+    console.log("Firebase 接続成功:", app);
   </script>
 </head>
 <body>
   <h1>Firebase × GitHub Pages 接続確認</h1>
+  <p>ブラウザの「開発者ツール → Console」を確認してみてください。</p>
 </body>
 </html>
