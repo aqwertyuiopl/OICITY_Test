@@ -1,17 +1,76 @@
 <!doctype html>
-<html>
+<html lang="ja">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Firebase × GitHub Pages</title>
-  <script type="module">
-    // Firebase SDK の読み込み（CDN版を使う）
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Firebase × GitHub Pages データベース（Firestore）デモ</title>
+  <style>
+    :root { --bg:#0b1020; --card:#121a33; --fg:#e8eeff; --muted:#9fb1ff; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--fg); }
+    header { padding:28px 20px 8px; text-align:center; }
+    header h1 { margin:0 0 6px; font-size:clamp(20px,4vw,28px); }
+    header p { margin:0; color:var(--muted); font-size:14px; }
+    .wrap { max-width:920px; margin:22px auto 60px; padding:0 16px; }
+    .card { background:var(--card); border:1px solid #22305f; border-radius:16px; padding:18px; box-shadow:0 8px 30px rgba(0,0,0,.25); }
+    form { display:grid; grid-template-columns: 1fr 2fr auto; gap:12px; align-items:end; }
+    label { font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
+    input, textarea { width:100%; background:#0f1833; color:var(--fg); border:1px solid #2b3f7c; border-radius:12px; padding:12px 14px; outline:none; }
+    textarea { height:46px; resize:vertical; }
+    button { background:#3b82f6; color:#fff; border:none; border-radius:12px; padding:12px 18px; font-weight:700; cursor:pointer; }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+    .list { margin-top:18px; }
+    .row { display:grid; grid-template-columns: 1.2fr 1.8fr auto; gap:12px; align-items:center; padding:12px; border-bottom:1px dashed #263b79; }
+    .row small { color:#9fb1ff; }
+    .empty { text-align:center; color:#9fb1ff; padding:22px 8px; }
+    .danger { background:#ef4444; }
+    .right { text-align:right; }
+    footer { text-align:center; color:#9fb1ff; font-size:12px; margin:28px 0; }
+    code { background:#0f1833; padding:2px 6px; border-radius:8px; border:1px solid #2b3f7c; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Firestore に書き込み & リアルタイム取得（GitHub Pages から）</h1>
+    <p>※ このページは静的ホスティング（GitHub Pages）+ Firebase Web SDK（CDN）だけで動きます。</p>
+  </header>
 
-    // あなたの firebaseConfig を貼る
+  <div class="wrap">
+    <section class="card">
+      <form id="addForm">
+        <div>
+          <label for="title">タイトル</label>
+          <input id="title" placeholder="例：お気に入りの店名" required />
+        </div>
+        <div>
+          <label for="note">メモ</label>
+          <textarea id="note" placeholder="例：ランチの唐揚げが最高！"></textarea>
+        </div>
+        <div class="right">
+          <button id="addBtn" type="submit">追加</button>
+        </div>
+      </form>
+      <div class="list" id="list"></div>
+      <div class="empty" id="empty">データがありません。上のフォームから追加してみてください。</div>
+    </section>
+
+    <footer>
+      <p>設定は <code>firebaseConfig</code> をあなたの値に差し替えて保存・コミットするだけ。</p>
+    </footer>
+  </div>
+
+  <script type="module">
+    // --- Firebase SDK（CDN 版）---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getFirestore, collection, addDoc, serverTimestamp,
+      onSnapshot, query, orderBy, deleteDoc, doc
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // === ここを Firebase Console の値に置き換えてください ===
+    // 例）const firebaseConfig = { apiKey: "...", authDomain: "...", projectId: "...", ... };
     const firebaseConfig = {
-    apiKey: "AIzaSyAC7KYkyQQ2htMVRuy0WecceSkkM6jEbEo",
+       apiKey: "AIzaSyAC7KYkyQQ2htMVRuy0WecceSkkM6jEbEo",
   authDomain: "oicity-7bdfa.firebaseapp.com",
   projectId: "oicity-7bdfa",
   storageBucket: "oicity-7bdfa.firebasestorage.app",
@@ -20,15 +79,88 @@
   measurementId: "G-XEWF7TP8R3"
     };
 
-    // Firebase 初期化
+    // --- 初期化 ---
     const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app);
+    const db  = getFirestore(app);
 
-    console.log("Firebase 接続成功:", app);
+    // --- DOM 取得 ---
+    const addForm = document.getElementById('addForm');
+    const titleEl = document.getElementById('title');
+    const noteEl  = document.getElementById('note');
+    const listEl  = document.getElementById('list');
+    const emptyEl = document.getElementById('empty');
+    const addBtn  = document.getElementById('addBtn');
+
+    // --- 追加処理 ---
+    addForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      addBtn.disabled = true;
+      const title = titleEl.value.trim();
+      const note  = noteEl.value.trim();
+      if (!title) { addBtn.disabled = false; return; }
+      try {
+        await addDoc(collection(db, 'items'), {
+          title,
+          note,
+          createdAt: serverTimestamp()
+        });
+        titleEl.value = '';
+        noteEl.value  = '';
+      } catch (err) {
+        alert('追加に失敗しました: ' + err.message);
+      } finally {
+        addBtn.disabled = false;
+      }
+    });
+
+    // --- リアルタイム購読 & 描画 ---
+    const q = query(collection(db, 'items'), orderBy('createdAt', 'desc'));
+    onSnapshot(q, (snap) => {
+      listEl.innerHTML = '';
+      if (snap.empty) {
+        emptyEl.style.display = 'block';
+        return;
+      }
+      emptyEl.style.display = 'none';
+      snap.forEach((docSnap) => {
+        const data = docSnap.data();
+        const row  = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML = `
+          <div>
+            <div style="font-weight:700;">${escapeHtml(data.title || '')}</div>
+            <small>${formatDate(data.createdAt)}</small>
+          </div>
+          <div>${escapeHtml(data.note || '')}</div>
+          <div class="right">
+            <button class="danger" data-id="${docSnap.id}">削除</button>
+          </div>`;
+        row.querySelector('button')!.addEventListener('click', async (ev) => {
+          const id = ev.currentTarget.getAttribute('data-id');
+          if (!id) return;
+          if (!confirm('削除しますか？')) return;
+          await deleteDoc(doc(db, 'items', id));
+        });
+        listEl.appendChild(row);
+      });
+    });
+
+    // --- ユーティリティ ---
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+    function formatDate(ts) {
+      if (!ts) return '-';
+      try {
+        const d = ts.toDate();
+        return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      } catch { return '-'; }
+    }
   </script>
-</head>
-<body>
-  <h1>Firebase × GitHub Pages 接続確認</h1>
-  <p>ブラウザの「開発者ツール → Console」を確認してみてください。</p>
 </body>
 </html>
